@@ -39,6 +39,23 @@ app.use((req, res) => {
     res.status(404).json({ error: "Endpoint not found" });
 });
 
+const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        contents: [
+            { parts: [{ text: `Based on this transcript, answer the following question:\n\n${transcript}\n\nQuestion: ${question}` }] }
+        ]
+    })
+});
+
+const data = await response.json();
+console.log("Gemini API Full Response:", JSON.stringify(data, null, 2)); // Log full response for debugging
+
+// Extract the answer properly
+const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response from AI.";
+res.json({ answer, raw: data });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
