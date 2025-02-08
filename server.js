@@ -29,4 +29,15 @@ app.post("/ask-gemini", async (req, res) => {
     }
 });
 
+app.get("/", (req, res) => {
+    res.json({ message: "Welcome to the YouTube Gemini Backend API!" });
+});
+
+// Handle unknown routes
+app.use((req, res) => {
+    res.status(404).json({ error: "Endpoint not found" });
+});
+
+
 app.listen(3000, () => console.log("Server running on port 3000"));
+
