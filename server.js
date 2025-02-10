@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
+import { YoutubeTranscript } from "youtube-transcript";
 
 dotenv.config();
 
@@ -14,13 +15,26 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-p
 
 app.post("/ask-gemini", async (req, res) => {
     try {
-        const { transcript, question } = req.body;
+        const { videoId, question } = req.body;
 
+        if (!videoId) {
+            return res.status(400).json({ error: "No YouTube video ID provided" });
+        }
         if (!question) {
             return res.status(400).json({ error: "No question provided" });
         }
 
-        // ✅ Correct Gemini AI request format
+        // ✅ Fetch transcript from YouTube
+        let transcript;
+        try {
+            const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
+            transcript = transcriptArray.map(entry => entry.text).join(" ");
+        } catch (err) {
+            console.error("Error fetching transcript:", err);
+            return res.status(500).json({ error: "Failed to fetch transcript. Video may not have captions." });
+        }
+
+        // ✅ Send transcript + question to Gemini AI
         const requestBody = {
             contents: [{ parts: [{ text: `Based on this transcript: ${transcript}, answer: ${question}` }] }]
         };
@@ -42,12 +56,11 @@ app.post("/ask-gemini", async (req, res) => {
         res.json({ answer });
 
     } catch (error) {
-        console.error("Error contacting Gemini AI:", error);
+        console.error("Error processing request:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
 
-// ✅ Test Route to check if server is running
 app.get("/", (req, res) => {
     res.json({ message: "Server is running!" });
 });
