@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
-import pkg from "youtube-caption-scraper"; // ✅ Fix for CommonJS module
+import pkg from "youtube-caption-scraper";
 const { getSubtitles } = pkg;
 
 dotenv.config();
@@ -14,32 +14,34 @@ app.use(express.json());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
 
-// ✅ Fetch YouTube transcript
+// ✅ Fetch YouTube transcript with better error handling
 async function fetchTranscript(videoId) {
     try {
-        const subtitles = await getSubtitles({ videoID: videoId, lang: "en" });
-        if (!subtitles.length) throw new Error("No captions found.");
+        console.log(`Fetching transcript for video: ${videoId}`);
+        let subtitles = await getSubtitles({ videoID: videoId, lang: "en" });
+
+        if (!subtitles.length) {
+            console.warn("No English captions found. Trying auto-generated captions...");
+            subtitles = await getSubtitles({ videoID: videoId, lang: "en-auto" }); // Auto-generated captions
+        }
+
+        if (!subtitles.length) throw new Error("No captions available.");
+
         return subtitles.map(entry => entry.text).join(" ");
     } catch (err) {
         console.error("Error fetching transcript:", err);
-        throw new Error("Failed to fetch transcript. Video may not have captions.");
+        return "Transcript not available. Please answer the question based on general video knowledge.";
     }
 }
 
-// ✅ API Route
+// ✅ API Route for Gemini AI
 app.post("/ask-gemini", async (req, res) => {
     try {
         const { videoId, question } = req.body;
         if (!videoId) return res.status(400).json({ error: "No YouTube video ID provided" });
         if (!question) return res.status(400).json({ error: "No question provided" });
 
-        let transcript;
-        try {
-            transcript = await fetchTranscript(videoId);
-        } catch (err) {
-            console.warn("Transcript not available, proceeding without it.");
-            transcript = "No transcript available. Provide a general response.";
-        }
+        const transcript = await fetchTranscript(videoId);
 
         const requestBody = {
             contents: [{ parts: [{ text: `Based on this transcript: ${transcript}, answer: ${question}` }] }]
@@ -67,9 +69,11 @@ app.post("/ask-gemini", async (req, res) => {
     }
 });
 
+// ✅ Test Route
 app.get("/", (req, res) => {
     res.json({ message: "Server is running!" });
 });
 
+// ✅ Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
